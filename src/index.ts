@@ -42,7 +42,6 @@ const LanguageCode = z.enum([
   'hu',
   'id',
   'it',
-  'ja',
   'ko',
   'lv',
   'lt',
@@ -83,7 +82,6 @@ const LANGUAGE_NAMES = {
   hu: 'Hungarian',
   id: 'Indonesian',
   it: 'Italian',
-  ja: 'Japanese',
   ko: 'Korean',
   lv: 'Latvian',
   lt: 'Lithuanian',
@@ -390,6 +388,7 @@ app.post(
         1. Identify its common name in ${LANGUAGE_NAMES[lang]}
         2. Determine if any ingredients are non-vegetarian, contain meat/fish, or make the product non-vegan
         3. Add a note about any uncertain identifications, ambiguous ingredient names, or potential cross-contamination warnings
+        4. Dairy is considered vegetarian
 
         Important:
         - Be thorough in ingredient identification
@@ -397,6 +396,7 @@ app.post(
         - Mention if any text is unclear or partially visible
         - Don't be overly cautious about origin of ingredients, like if amino acids are present, don't wonder if they're from animal sources or not unless mentioned explicitly
         - If ingredients list is not visible or readable, state this clearly in the note
+        - output ingredients and note in ${LANGUAGE_NAMES[lang]} language
 
         Respond with valid JSON format matching the specified schema.
       `
