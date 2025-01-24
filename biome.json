@@ -45,12 +45,7 @@
     }
   },
   "javascript": {
-    "globals": [
-      "$",
-      "_",
-      "CloudflareBindings",
-      "KVNamespace"
-    ],
+    "globals": ["$", "_", "CloudflareBindings", "KVNamespace"],
     "formatter": {
       "quoteStyle": "single",
       "trailingCommas": "es5",
