@@ -1,0 +1,21 @@
+{
+  "name": "shopsmartscan",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy --minify",
+    "format": "biome format --write .",
+    "lint": "biome lint .",
+    "check": "biome check --write ."
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.21.0",
+    "@hono/zod-validator": "^0.4.2",
+    "hono": "^4.6.18"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250109.0",
+    "wrangler": "^3.101.0",
+    "@biomejs/biome": "^1.9.4",
+    "zod": "^3.24.1"
+  }
+}
