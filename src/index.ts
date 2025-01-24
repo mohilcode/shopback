@@ -162,7 +162,7 @@ const geminiSchema = {
 
 const IngredientsResponseSchema = z.object({
   ingredients: z.array(z.string()),
-  nonVegetarian: z.boolean(),
+  vegetarian: z.boolean(),
   containsMeat: z.boolean(),
   containsFish: z.boolean(),
   isVegan: z.boolean(),
@@ -178,13 +178,13 @@ const geminiIngredientsSchema = {
       type: SchemaType.ARRAY,
       items: { type: SchemaType.STRING },
     },
-    nonVegetarian: { type: SchemaType.BOOLEAN },
+    vegetarian: { type: SchemaType.BOOLEAN },
     containsMeat: { type: SchemaType.BOOLEAN },
     containsFish: { type: SchemaType.BOOLEAN },
     isVegan: { type: SchemaType.BOOLEAN },
     note: { type: SchemaType.STRING },
   },
-  required: ['ingredients', 'nonVegetarian', 'containsMeat', 'containsFish', 'isVegan', 'note'],
+  required: ['ingredients', 'vegetarian', 'containsMeat', 'containsFish', 'isVegan', 'note'],
 }
 
 const fetchRakutenItem = async (janCode: string, appId: string): Promise<Product> => {
