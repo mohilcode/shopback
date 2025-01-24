@@ -395,6 +395,7 @@ app.post(
         - Be thorough in ingredient identification
         - Note any allergens clearly
         - Mention if any text is unclear or partially visible
+        - Don't be overly cautious about origin of ingredients, like if amino acids are present, don't wonder if they're from animal sources or not unless mentioned explicitly
         - If ingredients list is not visible or readable, state this clearly in the note
 
         Respond with valid JSON format matching the specified schema.
