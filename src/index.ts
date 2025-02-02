@@ -1,8 +1,37 @@
-import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai'
+import { GoogleGenerativeAI } from '@google/generative-ai'
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { z } from 'zod'
+import {
+  LANGUAGE_NAMES,
+  SUPPORTED_MIME_TYPES,
+  MAX_FILE_SIZE,
+  JMA_LANGUAGE_MAPPING,
+  EARTHQUAKE_CACHE_TTL,
+} from './constants'
+import {
+  LanguageCode,
+  JanCodeSchema,
+  type Product,
+  IngredientsResponseSchema,
+  type IngredientsResponse,
+  geminiIngredientsSchema,
+} from './types'
+import { translateEarthquakeData, fetchJMAData, getTranslations } from './utils/jma'
+import { fetchRakutenItem, fetchYahooItem } from './utils/product'
+import { getGeminiResponse } from './utils/gemini'
+import { arrayBufferToBase64 } from './utils'
+
+interface CloudflareBindings {
+  RAKUTEN_APP_ID: string
+  YAHOO_APP_ID: string
+  GEMINI_API_KEY: string
+  PRODUCT_CACHE: KVNamespace
+  JMA_DATA: KVNamespace
+}
+
+type SupportedMimeType = (typeof SUPPORTED_MIME_TYPES)[number]
 
 const app = new Hono<{ Bindings: CloudflareBindings }>()
 
@@ -14,237 +43,6 @@ app.use(
     exposeHeaders: ['Content-Type'],
   })
 )
-
-interface CloudflareBindings {
-  RAKUTEN_APP_ID: string
-  YAHOO_APP_ID: string
-  GEMINI_API_KEY: string
-  PRODUCT_CACHE: KVNamespace
-}
-
-const LanguageCode = z.enum([
-  'ar',
-  'bn',
-  'bg',
-  'zh',
-  'hr',
-  'cs',
-  'da',
-  'nl',
-  'en',
-  'et',
-  'fi',
-  'fr',
-  'de',
-  'el',
-  'iw',
-  'hi',
-  'hu',
-  'id',
-  'it',
-  'ko',
-  'lv',
-  'lt',
-  'no',
-  'pl',
-  'pt',
-  'ro',
-  'ru',
-  'sr',
-  'sk',
-  'sl',
-  'es',
-  'sw',
-  'sv',
-  'th',
-  'tr',
-  'uk',
-  'vi',
-])
-
-const LANGUAGE_NAMES = {
-  ar: 'Arabic',
-  bn: 'Bengali',
-  bg: 'Bulgarian',
-  zh: 'Chinese',
-  hr: 'Croatian',
-  cs: 'Czech',
-  da: 'Danish',
-  nl: 'Dutch',
-  en: 'English',
-  et: 'Estonian',
-  fi: 'Finnish',
-  fr: 'French',
-  de: 'German',
-  el: 'Greek',
-  iw: 'Hebrew',
-  hi: 'Hindi',
-  hu: 'Hungarian',
-  id: 'Indonesian',
-  it: 'Italian',
-  ko: 'Korean',
-  lv: 'Latvian',
-  lt: 'Lithuanian',
-  no: 'Norwegian',
-  pl: 'Polish',
-  pt: 'Portuguese',
-  ro: 'Romanian',
-  ru: 'Russian',
-  sr: 'Serbian',
-  sk: 'Slovak',
-  sl: 'Slovenian',
-  es: 'Spanish',
-  sw: 'Swahili',
-  sv: 'Swedish',
-  th: 'Thai',
-  tr: 'Turkish',
-  uk: 'Ukrainian',
-  vi: 'Vietnamese',
-} as const
-
-const SUPPORTED_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/heic'] as const
-
-type SupportedMimeType = (typeof SUPPORTED_MIME_TYPES)[number]
-
-const MAX_FILE_SIZE = 20 * 1024 * 1024
-
-const JanCodeSchema = z.string().regex(/^\d{13}$/)
-
-const ProductSchema = z.object({
-  name: z.string(),
-  description: z.string(),
-})
-
-type Product = z.infer<typeof ProductSchema>
-
-const RakutenResponseSchema = z.object({
-  Items: z
-    .array(
-      z.object({
-        Item: z.object({
-          itemName: z.string(),
-          catchcopy: z.string().optional(),
-          itemCaption: z.string(),
-        }),
-      })
-    )
-    .min(1),
-})
-
-const YahooResponseSchema = z.object({
-  hits: z
-    .array(
-      z.object({
-        name: z.string(),
-        description: z.string(),
-        headLine: z.string().optional(),
-      })
-    )
-    .min(1),
-})
-
-const geminiSchema = {
-  type: SchemaType.OBJECT,
-  properties: {
-    name: {
-      type: SchemaType.STRING,
-      description: 'Product name in specified language',
-    },
-    description: {
-      type: SchemaType.STRING,
-      description: 'Comprehensive product description in specified language',
-    },
-  },
-  required: ['name', 'description'],
-}
-
-const IngredientsResponseSchema = z.object({
-  ingredients: z.array(z.string()),
-  vegetarian: z.boolean(),
-  containsMeat: z.boolean(),
-  containsFish: z.boolean(),
-  isVegan: z.boolean(),
-  note: z.string().optional().default(''),
-})
-
-type IngredientsResponse = z.infer<typeof IngredientsResponseSchema>
-
-const geminiIngredientsSchema = {
-  type: SchemaType.OBJECT,
-  properties: {
-    ingredients: {
-      type: SchemaType.ARRAY,
-      items: { type: SchemaType.STRING },
-    },
-    vegetarian: { type: SchemaType.BOOLEAN },
-    containsMeat: { type: SchemaType.BOOLEAN },
-    containsFish: { type: SchemaType.BOOLEAN },
-    isVegan: { type: SchemaType.BOOLEAN },
-    note: { type: SchemaType.STRING },
-  },
-  required: ['ingredients', 'vegetarian', 'containsMeat', 'containsFish', 'isVegan', 'note'],
-}
-
-const fetchRakutenItem = async (janCode: string, appId: string): Promise<Product> => {
-  const url = new URL('https://app.rakuten.co.jp/services/api/IchibaItem/Search/20220601')
-  url.searchParams.set('format', 'json')
-  url.searchParams.set('keyword', janCode)
-  url.searchParams.set('applicationId', appId)
-  url.searchParams.set('hits', '1')
-
-  const response = await fetch(url)
-  const rawData = await response.json()
-  const data = RakutenResponseSchema.parse(rawData)
-
-  const item = data.Items[0].Item
-  return {
-    name: item.itemName,
-    description: `${item.catchcopy || ''} ${item.itemCaption}`.trim(),
-  }
-}
-
-const fetchYahooItem = async (janCode: string, appId: string): Promise<Product> => {
-  const url = new URL('https://shopping.yahooapis.jp/ShoppingWebService/V3/itemSearch')
-  url.searchParams.set('appid', appId)
-  url.searchParams.set('jan_code', janCode)
-  url.searchParams.set('results', '1')
-
-  const response = await fetch(url)
-  const rawData = await response.json()
-  const data = YahooResponseSchema.parse(rawData)
-
-  const item = data.hits[0]
-  return {
-    name: item.name,
-    description: `${item.description} ${item.headLine || ''}`.trim(),
-  }
-}
-
-const getGeminiResponse = async (
-  prompt: string,
-  apiKey: string,
-  targetLang: keyof typeof LANGUAGE_NAMES
-): Promise<Product> => {
-  const genAI = new GoogleGenerativeAI(apiKey)
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-2.0-flash-exp',
-    generationConfig: {
-      responseMimeType: 'application/json',
-      responseSchema: geminiSchema,
-    },
-  })
-
-  const result = await model.generateContent(`
-    ${prompt}
-    Translate the content to ${LANGUAGE_NAMES[targetLang]} language.
-  `)
-
-  return ProductSchema.parse(JSON.parse(result.response.text()))
-}
-
-const _arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
-  return btoa(new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), ''))
-}
 
 app.get(
   '/barcode/:janCode/:lang',
@@ -378,7 +176,7 @@ app.post(
 
       const imagePart = {
         inlineData: {
-          data: _arrayBufferToBase64(arrayBuffer),
+          data: arrayBufferToBase64(arrayBuffer),
           mimeType: file.type,
         },
       }
@@ -423,36 +221,6 @@ app.post(
     } catch (error) {
       console.error('Ingredients analysis error:', error)
 
-      if (error instanceof Error) {
-        if (error.message.includes('RESOURCE_EXHAUSTED')) {
-          return c.json(
-            {
-              error: 'API rate limit exceeded. Please try again later.',
-            },
-            429
-          )
-        }
-
-        if (error.message.includes('INVALID_ARGUMENT')) {
-          return c.json(
-            {
-              error:
-                'Invalid image format or content. Please ensure the image is clear and contains ingredient information.',
-            },
-            400
-          )
-        }
-
-        if (error.message.includes('FAILED_PRECONDITION')) {
-          return c.json(
-            {
-              error: 'Service currently unavailable. Please try again later.',
-            },
-            503
-          )
-        }
-      }
-
       return c.json(
         {
           error:
@@ -461,6 +229,50 @@ app.post(
         },
         500
       )
+    }
+  }
+)
+
+app.get(
+  '/earthquakes/:lang?',
+  zValidator(
+    'param',
+    z.object({
+      lang: z.enum(Object.keys(JMA_LANGUAGE_MAPPING) as [string, ...string[]]).optional(),
+    })
+  ),
+  async c => {
+    const lang = (c.req.valid('param').lang || 'english') as keyof typeof JMA_LANGUAGE_MAPPING
+    const dictLang = JMA_LANGUAGE_MAPPING[lang]
+
+    try {
+      const cachedData = await c.env.JMA_DATA.get('earthquakes:latest', 'json')
+      const lastUpdate = await c.env.JMA_DATA.get('earthquakes:lastUpdate')
+
+      if (cachedData && Array.isArray(cachedData) && lastUpdate &&
+          Date.now() - Number.parseInt(lastUpdate) < EARTHQUAKE_CACHE_TTL * 1000) {
+        return c.json({
+          data: translateEarthquakeData(cachedData, dictLang, await getTranslations(c.env.JMA_DATA)),
+          last_updated: new Date(Number.parseInt(lastUpdate)).toISOString()
+        })
+      }
+
+      const earthquakeData = await fetchJMAData()
+
+      await Promise.all([
+        c.env.JMA_DATA.put('earthquakes:latest', JSON.stringify(earthquakeData), {
+          expirationTtl: EARTHQUAKE_CACHE_TTL,
+        }),
+        c.env.JMA_DATA.put('earthquakes:lastUpdate', Date.now().toString()),
+      ])
+
+      return c.json({
+        data: translateEarthquakeData(earthquakeData, dictLang, await getTranslations(c.env.JMA_DATA)),
+        last_updated: new Date().toISOString()
+      })
+    } catch (error) {
+      console.error('Error processing earthquake data:', error)
+      return c.json({ error: 'Failed to fetch earthquake data' }, 500)
     }
   }
 )
