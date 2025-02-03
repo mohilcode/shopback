@@ -132,22 +132,23 @@ export const DetailedEarthquakeSchema = z.object({
     Intensity: z.object({
       Observation: z.object({
         MaxInt: z.string(),
-        Pref: z.array(z.object({
-          Code: z.string(),
-          Area: z.array(z.object({
+        Pref: z.array(
+          z.object({
             Code: z.string(),
-            City: z.array(z.object({
-              Code: z.string(),
-              MaxInt: z.string(),
-            })),
-          })),
-        })),
+            Area: z.array(
+              z.object({
+                Code: z.string(),
+                City: z.array(
+                  z.object({
+                    Code: z.string(),
+                    MaxInt: z.string(),
+                  })
+                ),
+              })
+            ),
+          })
+        ),
       }),
-    }),
-  }),
-  Comments: z.object({
-    ForecastComment: z.object({
-      Code: z.string(),
     }),
   }),
 })
@@ -160,21 +161,28 @@ export const ProcessedEarthquakeSchema = z.object({
   location: z.object({
     coordinate: z.string(),
   }),
-  regions: z.array(z.object({
-    pref_code: z.string(),
-    areas: z.array(z.object({
-      area_code: z.string(),
-      cities: z.array(z.object({
-        city_code: z.string(),
-      })),
-    })),
-  })),
-  tsunami: z.boolean(),
+  regions: z.array(
+    z.object({
+      pref_code: z.string(),
+      areas: z.array(
+        z.object({
+          area_code: z.string(),
+          cities: z.array(
+            z.object({
+              city_code: z.string(),
+            })
+          ),
+        })
+      ),
+    })
+  ),
 })
 export type ProcessedEarthquake = z.infer<typeof ProcessedEarthquakeSchema>
 
 export const ListEventSchema = z.object({
-  json: z.string()
+  json: z.string(),
+  int: z.array(z.any()).optional(),
+  maxi: z.string().optional(),
 })
 export type ListEvent = z.infer<typeof ListEventSchema>
 

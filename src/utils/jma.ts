@@ -3,10 +3,14 @@ import {
   type ProcessedEarthquake,
   type ListEvent,
   type Translation,
-  DetailedEarthquakeSchema
+  DetailedEarthquakeSchema,
 } from '../types'
 
-const _processDetailedData = (data: DetailedEarthquake): ProcessedEarthquake => {
+const _processDetailedData = (data: DetailedEarthquake): ProcessedEarthquake | null => {
+  if (!data.Body.Intensity.Observation.Pref.length) {
+    return null
+  }
+
   return {
     time: data.Body.Earthquake.OriginTime,
     magnitude: data.Body.Earthquake.Magnitude,
@@ -23,31 +27,42 @@ const _processDetailedData = (data: DetailedEarthquake): ProcessedEarthquake => 
         })),
       })),
     })),
-    tsunami: data.Comments.ForecastComment.Code === '0215',
   }
 }
 
 export const fetchJMAData = async (): Promise<ProcessedEarthquake[]> => {
   const listResponse = await fetch('https://www.jma.go.jp/bosai/quake/data/list.json')
 
-  if (!listResponse.ok) { throw new Error('Failed to fetch list.json') }
+  if (!listResponse.ok) {
+    throw new Error('Failed to fetch list.json')
+  }
   const listData = (await listResponse.json()) as ListEvent[]
 
-  const top20Events = listData.slice(0, 20)
+  const eventsWithIntensity = listData
+    .slice(0, 20)
+    .filter(event => Array.isArray(event.int) && event.int.length > 0)
 
-  const detailedDataPromises = top20Events.map(async (event) => {
+  const detailedDataPromises = eventsWithIntensity.map(async event => {
     try {
       const url = `https://www.jma.go.jp/bosai/quake/data/${event.json}`
       const response = await fetch(url)
-      console.error(response)
-      if (!response.ok) { throw new Error(`Failed to fetch ${url}`) }
+      if (!response.ok) {
+        throw new Error(`Failed to fetch ${url}`)
+      }
 
-      const detailedData = (await response.json()) as DetailedEarthquake
+      const detailedData = await response.json()
+      const parsedDetailedData =
+        typeof detailedData === 'string' ? JSON.parse(detailedData) : detailedData
 
-      const parsedData = DetailedEarthquakeSchema.parse(detailedData)
-      return _processDetailedData(parsedData)
+      try {
+        const parsedData = DetailedEarthquakeSchema.parse(parsedDetailedData)
+        return _processDetailedData(parsedData)
+      } catch (parseError) {
+        console.error(`Schema validation error for ${url}:`, parseError)
+        return null
+      }
     } catch (error) {
-      console.error(`Error fetching detailed data: ${error}`)
+      console.error('Error fetching detailed data:', error)
       return null
     }
   })
@@ -68,10 +83,10 @@ export const translateEarthquakeData = (
       areas: region.areas.map(area => ({
         name: translations.epi[area.area_code]?.[lang] || area.area_code,
         cities: area.cities.map(city => ({
-          name: translations.city[city.city_code]?.[lang] || city.city_code
-        }))
-      }))
-    }))
+          name: translations.city[city.city_code]?.[lang] || city.city_code,
+        })),
+      })),
+    })),
   }))
 }
 
@@ -79,7 +94,7 @@ export const getTranslations = async (kv: KVNamespace) => {
   const [epi, pref, city] = await Promise.all([
     kv.get('dictionary:epi', 'json') as Promise<Translation>,
     kv.get('dictionary:pref', 'json') as Promise<Translation>,
-    kv.get('dictionary:city', 'json') as Promise<Translation>
+    kv.get('dictionary:city', 'json') as Promise<Translation>,
   ])
   return { epi, pref, city }
 }

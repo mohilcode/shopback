@@ -23,14 +23,6 @@ import { fetchRakutenItem, fetchYahooItem } from './utils/product'
 import { getGeminiResponse } from './utils/gemini'
 import { arrayBufferToBase64 } from './utils'
 
-interface CloudflareBindings {
-  RAKUTEN_APP_ID: string
-  YAHOO_APP_ID: string
-  GEMINI_API_KEY: string
-  PRODUCT_CACHE: KVNamespace
-  JMA_DATA: KVNamespace
-}
-
 type SupportedMimeType = (typeof SUPPORTED_MIME_TYPES)[number]
 
 const app = new Hono<{ Bindings: CloudflareBindings }>()
@@ -236,39 +228,49 @@ app.post(
 app.get(
   '/earthquakes/:lang?',
   zValidator(
+    'query',
+    z.object({
+      force: z.boolean().optional(),
+    })
+  ),
+  zValidator(
     'param',
     z.object({
       lang: z.enum(Object.keys(JMA_LANGUAGE_MAPPING) as [string, ...string[]]).optional(),
     })
   ),
   async c => {
-    const lang = (c.req.valid('param').lang || 'english') as keyof typeof JMA_LANGUAGE_MAPPING
+    const lang = (c.req.valid('param').lang || 'en') as keyof typeof JMA_LANGUAGE_MAPPING
     const dictLang = JMA_LANGUAGE_MAPPING[lang]
+    const forceUpdate = c.req.valid('query').force
 
     try {
       const cachedData = await c.env.JMA_DATA.get('earthquakes:latest', 'json')
-      const lastUpdate = await c.env.JMA_DATA.get('earthquakes:lastUpdate')
 
-      if (cachedData && Array.isArray(cachedData) && lastUpdate &&
-          Date.now() - Number.parseInt(lastUpdate) < EARTHQUAKE_CACHE_TTL * 1000) {
+      if (!forceUpdate && cachedData && Array.isArray(cachedData)) {
         return c.json({
-          data: translateEarthquakeData(cachedData, dictLang, await getTranslations(c.env.JMA_DATA)),
-          last_updated: new Date(Number.parseInt(lastUpdate)).toISOString()
+          data: translateEarthquakeData(
+            cachedData,
+            dictLang,
+            await getTranslations(c.env.JMA_DATA)
+          ),
+          last_updated: new Date().toISOString(),
         })
       }
 
       const earthquakeData = await fetchJMAData()
 
-      await Promise.all([
-        c.env.JMA_DATA.put('earthquakes:latest', JSON.stringify(earthquakeData), {
-          expirationTtl: EARTHQUAKE_CACHE_TTL,
-        }),
-        c.env.JMA_DATA.put('earthquakes:lastUpdate', Date.now().toString()),
-      ])
+      await c.env.JMA_DATA.put('earthquakes:latest', JSON.stringify(earthquakeData), {
+        expirationTtl: EARTHQUAKE_CACHE_TTL,
+      })
 
       return c.json({
-        data: translateEarthquakeData(earthquakeData, dictLang, await getTranslations(c.env.JMA_DATA)),
-        last_updated: new Date().toISOString()
+        data: translateEarthquakeData(
+          earthquakeData,
+          dictLang,
+          await getTranslations(c.env.JMA_DATA)
+        ),
+        last_updated: new Date().toISOString(),
       })
     } catch (error) {
       console.error('Error processing earthquake data:', error)
