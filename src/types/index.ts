@@ -131,7 +131,7 @@ export const EarthquakeSchema = z.object({
     }),
     Comments: z.object({
       ForecastComment: z.object({
-        Code: z.string(),
+        Text: z.string(),
       }),
     }),
   }),
@@ -173,7 +173,7 @@ export const DetailedEarthquakeSchema = z.object({
     }),
     Comments: z.object({
       ForecastComment: z.object({
-        Code: z.string(),
+        Text: z.string(),
       }),
     }),
   }),

@@ -32,7 +32,7 @@ const _processDetailedData = (data: DetailedEarthquake): ProcessedEarthquake | n
       })),
     })),
     comments: {
-      hasTsunamiWarning: data.Body.Comments.ForecastComment.Code !== '0',
+      hasTsunamiWarning: data.Body.Comments.ForecastComment.Text !== 'この地震による津波の心配はありません。',
     },
   }
 }
@@ -46,7 +46,7 @@ const _processJustEarthquakeData = (data: Earthquake): ProcessedJustEarthquake =
       coordinate: data.Body.Earthquake.Hypocenter.Area.Coordinate,
     },
     comments: {
-      hasTsunamiWarning: data.Body.Comments.ForecastComment.Code !== '0',
+      hasTsunamiWarning: data.Body.Comments.ForecastComment.Text === '1',
     },
   }
 }
