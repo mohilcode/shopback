@@ -145,15 +145,15 @@ export const translateEarthquakeData = (
       return {
         ...quake,
         location: {
-          ...quake.location,
-          name: translations.epi[quake.location.code]?.[lang] || quake.location.code,
+          code: translations.epi[quake.location.code]?.[lang] || quake.location.code,
+          coordinate: quake.location.coordinate,
         },
         regions: quake.regions.map(region => ({
           prefecture: translations.pref[region.pref_code]?.[lang] || region.pref_code,
           areas: region.areas.map(area => ({
-            name: translations.epi[area.area_code]?.[lang] || area.area_code,
+            area_code: translations.epi[area.area_code]?.[lang] || area.area_code,
             cities: area.cities.map(city => ({
-              name: translations.city[city.city_code]?.[lang] || city.city_code,
+              city_code: translations.city[city.city_code]?.[lang] || city.city_code,
             })),
           })),
         })),
@@ -162,8 +162,8 @@ export const translateEarthquakeData = (
     return {
       ...quake,
       location: {
-        ...quake.location,
-        name: translations.epi[quake.location.code]?.[lang] || quake.location.code,
+        code: translations.epi[quake.location.code]?.[lang] || quake.location.code,
+        coordinate: quake.location.coordinate,
       },
     }
   })
