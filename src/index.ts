@@ -17,6 +17,8 @@ import {
   IngredientsResponseSchema,
   type IngredientsResponse,
   geminiIngredientsSchema,
+  type ProcessedEarthquake,
+  type ProcessedJustEarthquake,
 } from './types'
 import { translateEarthquakeData, fetchJMAData, getTranslations } from './utils/jma'
 import { fetchRakutenItem, fetchYahooItem } from './utils/product'
@@ -245,31 +247,33 @@ app.get(
     const forceUpdate = c.req.valid('query').force
 
     try {
-      const cachedData = await c.env.JMA_DATA.get('earthquakes:latest', 'json')
+      const cachedData = (await c.env.JMA_DATA.get('earthquakes:latest', 'json')) as {
+        detailed: ProcessedEarthquake[]
+        basic: ProcessedJustEarthquake[]
+      } | null
 
-      if (!forceUpdate && cachedData && Array.isArray(cachedData)) {
+      if (!forceUpdate && cachedData) {
+        const translations = await getTranslations(c.env.JMA_DATA)
         return c.json({
-          data: translateEarthquakeData(
-            cachedData,
-            dictLang,
-            await getTranslations(c.env.JMA_DATA)
-          ),
+          data: {
+            detailed: translateEarthquakeData(cachedData.detailed, dictLang, translations),
+            basic: translateEarthquakeData(cachedData.basic, dictLang, translations),
+          },
           last_updated: new Date().toISOString(),
         })
       }
 
       const earthquakeData = await fetchJMAData()
-
       await c.env.JMA_DATA.put('earthquakes:latest', JSON.stringify(earthquakeData), {
         expirationTtl: EARTHQUAKE_CACHE_TTL,
       })
 
+      const translations = await getTranslations(c.env.JMA_DATA)
       return c.json({
-        data: translateEarthquakeData(
-          earthquakeData,
-          dictLang,
-          await getTranslations(c.env.JMA_DATA)
-        ),
+        data: {
+          detailed: translateEarthquakeData(earthquakeData.detailed, dictLang, translations),
+          basic: translateEarthquakeData(earthquakeData.basic, dictLang, translations),
+        },
         last_updated: new Date().toISOString(),
       })
     } catch (error) {
@@ -281,4 +285,24 @@ app.get(
 
 app.get('/', c => c.text('Hello World!'))
 
-export default app
+export default {
+  async fetch(request: Request, env: CloudflareBindings, _ctx: ExecutionContext) {
+    return app.fetch(request, env)
+  },
+
+  async scheduled(
+    _controller: ScheduledController,
+    env: CloudflareBindings,
+    _ctx: ExecutionContext
+  ) {
+    try {
+      const earthquakeData = await fetchJMAData()
+      await env.JMA_DATA.put('earthquakes:latest', JSON.stringify(earthquakeData), {
+        expirationTtl: EARTHQUAKE_CACHE_TTL,
+      })
+    } catch (error) {
+      console.error('Error updating earthquake data in cron job:', error)
+      throw error
+    }
+  },
+}

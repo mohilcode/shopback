@@ -117,6 +117,27 @@ export const geminiIngredientsSchema = {
   required: ['ingredients', 'vegetarian', 'containsMeat', 'containsFish', 'isVegan', 'note'],
 }
 
+export const EarthquakeSchema = z.object({
+  Body: z.object({
+    Earthquake: z.object({
+      OriginTime: z.string(),
+      Magnitude: z.string(),
+      Hypocenter: z.object({
+        Area: z.object({
+          Code: z.string(),
+          Coordinate: z.string(),
+        }),
+      }),
+    }),
+    Comments: z.object({
+      ForecastComment: z.object({
+        Code: z.string(),
+      }),
+    }),
+  }),
+})
+export type Earthquake = z.infer<typeof EarthquakeSchema>
+
 export const DetailedEarthquakeSchema = z.object({
   Body: z.object({
     Earthquake: z.object({
@@ -150,6 +171,11 @@ export const DetailedEarthquakeSchema = z.object({
         ),
       }),
     }),
+    Comments: z.object({
+      ForecastComment: z.object({
+        Code: z.string(),
+      }),
+    }),
   }),
 })
 export type DetailedEarthquake = z.infer<typeof DetailedEarthquakeSchema>
@@ -159,6 +185,7 @@ export const ProcessedEarthquakeSchema = z.object({
   magnitude: z.string(),
   maxInt: z.string(),
   location: z.object({
+    code: z.string(),
     coordinate: z.string(),
   }),
   regions: z.array(
@@ -176,8 +203,24 @@ export const ProcessedEarthquakeSchema = z.object({
       ),
     })
   ),
+  comments: z.object({
+    hasTsunamiWarning: z.boolean(),
+  }),
 })
 export type ProcessedEarthquake = z.infer<typeof ProcessedEarthquakeSchema>
+
+export const ProcessedJustEarthquakeSchema = z.object({
+  time: z.string(),
+  magnitude: z.string(),
+  location: z.object({
+    code: z.string(),
+    coordinate: z.string(),
+  }),
+  comments: z.object({
+    hasTsunamiWarning: z.boolean(),
+  }),
+})
+export type ProcessedJustEarthquake = z.infer<typeof ProcessedJustEarthquakeSchema>
 
 export const ListEventSchema = z.object({
   json: z.string(),
