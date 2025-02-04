@@ -67,9 +67,9 @@ export const fetchJMAData = async (): Promise<{
   }>(
     (acc, event) => {
       const url = `https://www.jma.go.jp/bosai/quake/data/${event.json}`
-      if (url.includes('VXSE51')) {
+      if (url.includes('VXSE5k')) {
         acc.detailedInfo.push(event)
-      } else if (url.includes('VXSE5k')) {
+      } else if (url.includes('VXSE52')) {
         acc.basicInfo.push(event)
       }
       return acc
