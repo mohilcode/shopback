@@ -232,7 +232,7 @@ app.get(
   zValidator(
     'query',
     z.object({
-      force: z.boolean().optional(),
+      force: z.enum(['true', 'false']).transform(val => val === 'true').optional(),
     })
   ),
   zValidator(
